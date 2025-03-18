@@ -19,20 +19,15 @@ class LastFM : ExtensionClient, LoginClient.UsernamePassword, TrackerClient {
     override suspend fun onExtensionSelected() {}
 
     override suspend fun onMarkAsPlayed(details: TrackDetails) {
-        val track = details.track
-        val trackDuration = track.duration ?: return // Skip if duration is not available
-        if (trackDuration <= 30 * 1000) return // Skip if track is shorter than 30 seconds
+        val trackDuration = details.track.duration ?: return // Skip if duration is not available
+        val threshold = minOf(trackDuration / 2, 240_000) // Half the duration or 4 minutes
+        if (details.playedDuration < threshold) return // Skip if played duration is less than the threshold
 
-        val scrobbleThreshold = minOf(trackDuration / 2, 4 * 60 * 1000) // Half the duration or 4 minutes, whichever is earlier
-        val elapsedTime = System.currentTimeMillis() - details.startTime
-
-        if (elapsedTime >= scrobbleThreshold) {
-            val timestamp = System.currentTimeMillis() / 1000 - 30
-            var artists = track.artists.joinToString(",") { it.name }
-            if (artists.isBlank() && track.title.isBlank()) return
-            if (artists.isBlank()) artists = track.title
-            api.sendScrobble(timestamp, track.title, artists, track.album?.title)
-        }
+        val timestamp = System.currentTimeMillis() / 1000 - 30
+        var artists = details.track.artists.joinToString(",") { it.name }
+        if (artists.isBlank() && details.track.title.isBlank()) return
+        if (artists.isBlank()) artists = details.track.title
+        api.sendScrobble(timestamp, details.track.title, artists, details.track.album?.title)
     }
 
     override suspend fun onTrackChanged(details: TrackDetails?) {
